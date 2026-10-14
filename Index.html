@@ -20,7 +20,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             z-index: 10;
             cursor: pointer;
-            touch-action: none; /* Forhindrer scroll på touch-enheder mens man trækker */
+            touch-action: none;
         }
 
         .lv1 { background-color: #007bff; width: 70px; height: 70px; }
@@ -121,37 +121,41 @@
         if(config.type === "click") {
             t.onclick = () => removeTarget(t);
         } else if(config.type === "contextmenu") {
-            t.oncontextmenu = (e) => { e.preventDefault(); removeTarget(t); };
+            t.oncontextmenu = (e) => {
+                e.preventDefault();
+                removeTarget(t);
+            };
         } else if(config.type === "drag") {
-            t.onmousedown = (e) => startDrag(e, t);
+            t.onpointerdown = (e) => startDrag(e, t);
         }
 
         gameArea.appendChild(t);
     }
 
     function startDrag(e, el) {
+        e.preventDefault();
         activeDraggingElement = el;
         el.style.zIndex = 1000;
+
         const rect = el.getBoundingClientRect();
         offset.x = e.clientX - rect.left;
         offset.y = e.clientY - rect.top;
     }
 
-    // Global mouse listeners for at undgå "fryse" effekt
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('pointermove', (e) => {
         if (!activeDraggingElement) return;
-        
+
         const areaRect = gameArea.getBoundingClientRect();
-        let x = e.clientX - areaRect.left - offset.x;
-        let y = e.clientY - areaRect.top - offset.y;
-        
+        const x = e.clientX - areaRect.left - offset.x;
+        const y = e.clientY - areaRect.top - offset.y;
+
         activeDraggingElement.style.left = x + 'px';
         activeDraggingElement.style.top = y + 'px';
     });
 
-    document.addEventListener('mouseup', (e) => {
+    document.addEventListener('pointerup', () => {
         if (!activeDraggingElement) return;
-        
+
         const dzRect = dropZone.getBoundingClientRect();
         const elRect = activeDraggingElement.getBoundingClientRect();
 
@@ -159,7 +163,7 @@
             elRect.top < dzRect.bottom && elRect.bottom > dzRect.top) {
             removeTarget(activeDraggingElement);
         }
-        
+
         if (activeDraggingElement) activeDraggingElement.style.zIndex = 10;
         activeDraggingElement = null;
     });
@@ -168,7 +172,7 @@
         el.remove();
         count--;
         targetsLeft.innerText = count;
-        
+
         if(currentLevel === 6 && count > 0) moveDropZone();
 
         if(count <= 0) {
