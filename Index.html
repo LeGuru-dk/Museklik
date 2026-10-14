@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f7f6; overflow: hidden; }
+        #game-wrapper { max-width: 800px; margin: 20px auto; border: 3px solid #333; border-radius: 8px; overflow: hidden; background: white; user-select: none; }
+        #info-bar { background: #333; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        #instruction { font-weight: bold; font-size: 1.1em; color: #ffcc00; }
+        #game-area { width: 100%; height: 550px; position: relative; background-color: #e9ecef; overflow: hidden; }
+        
+        .target { 
+            position: absolute; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: white; 
+            font-size: 11px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10;
+            cursor: pointer;
+            touch-action: none; /* Forhindrer scroll på touch-enheder mens man trækker */
+        }
+
+        .lv1 { background-color: #007bff; width: 70px; height: 70px; }
+        .lv2 { background-color: #28a745; width: 40px; height: 40px; }
+        .lv3 { background-color: #dc3545; width: 70px; height: 70px; }
+        .lv4 { background-color: #fd7e14; width: 40px; height: 40px; }
+        .lv5 { background-color: #6f42c1; width: 70px; height: 70px; cursor: move; }
+        .lv6 { background-color: #e67e22; width: 35px; height: 35px; cursor: move; }
+
+        #drop-zone {
+            position: absolute; width: 160px; height: 160px; 
+            border: 3px dashed #333; display: none; 
+            align-items: center; justify-content: center;
+            text-align: center; color: #333; font-weight: bold;
+            background: rgba(255,255,255,0.5); z-index: 1;
+        }
+        
+        #reset-btn { 
+            display: none; padding: 10px 20px; background: #007bff; 
+            color: white; border: none; border-radius: 5px; cursor: pointer;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+<div id="game-wrapper">
+    <div id="info-bar">
+        <div>Niveau: <span id="level-num">1</span>/6</div>
+        <div id="instruction">Indlæser...</div>
+        <div>Mål: <span id="targets-left">0</span></div>
+    </div>
+    <div id="game-area">
+        <div id="drop-zone">TRÆK HERTIL</div>
+        <button id="reset-btn" onclick="location.reload()">Flot! Start forfra?</button>
+    </div>
+</div>
+
+<script>
+    const gameArea = document.getElementById('game-area');
+    const levelNum = document.getElementById('level-num');
+    const instruction = document.getElementById('instruction');
+    const targetsLeft = document.getElementById('targets-left');
+    const dropZone = document.getElementById('drop-zone');
+    const resetBtn = document.getElementById('reset-btn');
+
+    let currentLevel = 1;
+    let count = 0;
+    let activeDraggingElement = null;
+    let offset = { x: 0, y: 0 };
+
+    const levels = {
+        1: { text: "Trin 1: Venstre-klik på de blå cirkler", class: "lv1", type: "click", count: 5 },
+        2: { text: "Trin 2: Klik på de små grønne cirkler", class: "lv2", type: "click", count: 5 },
+        3: { text: "Trin 3: Højre-klik på de røde cirkler", class: "lv3", type: "contextmenu", count: 5 },
+        4: { text: "Trin 4: Højre-klik på de små orange cirkler", class: "lv4", type: "contextmenu", count: 5 },
+        5: { text: "Trin 5: Træk de lilla cirkler hen i kassen", class: "lv5", type: "drag", count: 3 },
+        6: { text: "Ekspert: Træk de små orange cirkler hen i kassen", class: "lv6", type: "drag", count: 4 }
+    };
+
+    function initLevel(lv) {
+        document.querySelectorAll('.target').forEach(t => t.remove());
+        const config = levels[lv];
+        currentLevel = lv;
+        count = config.count;
+        levelNum.innerText = lv;
+        instruction.innerText = config.text;
+        targetsLeft.innerText = count;
+
+        if(config.type === "drag") {
+            dropZone.style.display = 'flex';
+            moveDropZone();
+        } else {
+            dropZone.style.display = 'none';
+        }
+
+        for(let i = 0; i < count; i++) {
+            createTarget(config);
+        }
+    }
+
+    function moveDropZone() {
+        const maxX = gameArea.offsetWidth - 180;
+        const maxY = gameArea.offsetHeight - 180;
+        dropZone.style.left = Math.random() * maxX + 20 + 'px';
+        dropZone.style.top = Math.random() * maxY + 20 + 'px';
+    }
+
+    function createTarget(config) {
+        const t = document.createElement('div');
+        t.className = 'target ' + config.class;
+        
+        const maxX = gameArea.offsetWidth - 80;
+        const maxY = gameArea.offsetHeight - 80;
+        t.style.left = Math.random() * maxX + 'px';
+        t.style.top = Math.random() * maxY + 'px';
+
+        if(config.type === "click") {
+            t.onclick = () => removeTarget(t);
+        } else if(config.type === "contextmenu") {
+            t.oncontextmenu = (e) => { e.preventDefault(); removeTarget(t); };
+        } else if(config.type === "drag") {
+            t.onmousedown = (e) => startDrag(e, t);
+        }
+
+        gameArea.appendChild(t);
+    }
+
+    function startDrag(e, el) {
+        activeDraggingElement = el;
+        el.style.zIndex = 1000;
+        const rect = el.getBoundingClientRect();
+        offset.x = e.clientX - rect.left;
+        offset.y = e.clientY - rect.top;
+    }
+
+    // Global mouse listeners for at undgå "fryse" effekt
+    document.addEventListener('mousemove', (e) => {
+        if (!activeDraggingElement) return;
+        
+        const areaRect = gameArea.getBoundingClientRect();
+        let x = e.clientX - areaRect.left - offset.x;
+        let y = e.clientY - areaRect.top - offset.y;
+        
+        activeDraggingElement.style.left = x + 'px';
+        activeDraggingElement.style.top = y + 'px';
+    });
+
+    document.addEventListener('mouseup', (e) => {
+        if (!activeDraggingElement) return;
+        
+        const dzRect = dropZone.getBoundingClientRect();
+        const elRect = activeDraggingElement.getBoundingClientRect();
+
+        if (elRect.left < dzRect.right && elRect.right > dzRect.left &&
+            elRect.top < dzRect.bottom && elRect.bottom > dzRect.top) {
+            removeTarget(activeDraggingElement);
+        }
+        
+        if (activeDraggingElement) activeDraggingElement.style.zIndex = 10;
+        activeDraggingElement = null;
+    });
+
+    function removeTarget(el) {
+        el.remove();
+        count--;
+        targetsLeft.innerText = count;
+        
+        if(currentLevel === 6 && count > 0) moveDropZone();
+
+        if(count <= 0) {
+            if(currentLevel < 6) {
+                initLevel(currentLevel + 1);
+            } else {
+                instruction.innerText = "Gennemført!";
+                dropZone.style.display = 'none';
+                resetBtn.style.display = 'block';
+            }
+        }
+    }
+
+    initLevel(1);
+</script>
+</body>
+</html>
